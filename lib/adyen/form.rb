@@ -375,7 +375,26 @@ module Adyen
     def redirect_signature(params, shared_secret = nil)
       shared_secret ||= Adyen.configuration.form_skin_shared_secret_by_code(params['skinCode'])
       raise ArgumentError, "Cannot compute redirect signature with empty shared_secret" if shared_secret.to_s.empty?
-      Adyen::Util.hmac_base64(shared_secret, redirect_signature_string(params))
+
+      sign_params = parameters.map{ |k, v| sign_params[k.to_s.camelize(:lower)] = v.to_s }
+      sig = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), Array(shared_secret).pack("H*"), string_to_sign(sign_params)).to_s
+      Base64.encode64(sig).strip
+    end
+
+    def string_to_sign(params)
+      (sorted_keys(params) + sorted_values(params)).map{ |el| escape_value(el) }.join(':')
+    end
+
+    def sorted_keys(hash)
+      hash.sort.map{ |el| el[0] }
+    end
+
+    def sorted_values(hash)
+      hash.sort.map{ |el| el[1] }
+    end
+
+    def escape_value(value)
+      value.gsub(':', '\\:').gsub('\\', '\\\\')
     end
 
     # Checks the redirect signature for this request by calcultating the signature from
